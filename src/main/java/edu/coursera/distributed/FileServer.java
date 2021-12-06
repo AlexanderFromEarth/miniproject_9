@@ -1,12 +1,10 @@
 package edu.coursera.distributed;
 
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.File;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A basic and very limited implementation of a file server that responds to GET
@@ -26,47 +24,32 @@ public final class FileServer {
      */
     public void run(final ServerSocket socket, final PCDPFilesystem fs)
             throws IOException {
-        /*
-         * Enter a spin loop for handling client requests to the provided
-         * ServerSocket object.
-         */
+        Pattern pattern = Pattern.compile("GET ((/[a-zA-Z0-9.]+)+) HTTP/1.1");
+
         while (true) {
+            Socket connectionSocket = socket.accept();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
+            DataOutputStream writer = new DataOutputStream(connectionSocket.getOutputStream());
+            Matcher matcher = pattern.matcher(reader.readLine());
 
-            // TODO Delete this once you start working on your solution.
-            throw new UnsupportedOperationException();
+            try {
+                if (!matcher.matches()) {
+                    throw new Exception("Not Found");
+                }
 
-            // TODO 1) Use socket.accept to get a Socket object
+                PCDPPath path = new PCDPPath(matcher.group(1));
+                String fileContents = fs.readFile(path);
 
-            /*
-             * TODO 2) Using Socket.getInputStream(), parse the received HTTP
-             * packet. In particular, we are interested in confirming this
-             * message is a GET and parsing out the path to the file we are
-             * GETing. Recall that for GET HTTP packets, the first line of the
-             * received packet will look something like:
-             *
-             *     GET /path/to/file HTTP/1.1
-             */
+                if (fileContents == null) {
+                    throw new Exception("Not Found");
+                }
 
-            /*
-             * TODO 3) Using the parsed path to the target file, construct an
-             * HTTP reply and write it to Socket.getOutputStream(). If the file
-             * exists, the HTTP reply should be formatted as follows:
-             *
-             *   HTTP/1.0 200 OK\r\n
-             *   Server: FileServer\r\n
-             *   \r\n
-             *   FILE CONTENTS HERE\r\n
-             *
-             * If the specified file does not exist, you should return a reply
-             * with an error code 404 Not Found. This reply should be formatted
-             * as:
-             *
-             *   HTTP/1.0 404 Not Found\r\n
-             *   Server: FileServer\r\n
-             *   \r\n
-             *
-             * Don't forget to close the output stream.
-             */
+                writer.writeBytes("HTTP/1.0 200 OK\r\nServer: FileServer\r\n\r\n" + fileContents + "\r\n");
+            } catch (Exception e) {
+                writer.writeBytes("HTTP/1.0 404 Not Found\r\nServer: FileServer\r\n\r\n");
+            }
+
+            connectionSocket.close();
         }
     }
 }
